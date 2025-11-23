@@ -3,10 +3,12 @@ import {Box, Button, Card, CardContent, Checkbox, Container, Stack, TextField, T
 import {useApiConfig} from '../context/ApiConfigContext';
 import {
     useGetOperationsPnrInfoRequestsOperationIdentifier,
+    useGetOperationsRefundFareRequestsOperationIdentifier,
     usePostAsyncCommonPnrInfoRequests,
+    usePostAsyncRefundFareRequests,
 } from '../api/generated/api';
 import type {AxiosError, AxiosResponse} from 'axios';
-import type {PnrInfoResponse} from '../api/generated/api.schemas';
+import type {PnrInfoResponse, RefundFareCalculationResponse,} from '../api/generated/api.schemas';
 
 const StartPage = () => {
     const {apiKey, terminalCode, locked, save, logout} = useApiConfig();
@@ -20,10 +22,19 @@ const StartPage = () => {
     const [selectedPassengerIds, setSelectedPassengerIds] = useState<number[]>([]);
     const [selectedSegmentNumbers, setSelectedSegmentNumbers] = useState<number[]>([]);
 
+    // состояние для Fare Info
+    const [fareOperationId, setFareOperationId] = useState<string | null>(null);
+    const [fareInfoMessage, setFareInfoMessage] = useState<string>('');
+
     const {
         mutate: postPnrInfo,
         isPending: isPnrLoading,
     } = usePostAsyncCommonPnrInfoRequests();
+
+    const {
+        mutate: postFareInfo,
+        isPending: isFareLoading,
+    } = usePostAsyncRefundFareRequests();
 
     // запрос результата PNR Info по operationId с опросом раз в 2 секунды
     const {
@@ -55,6 +66,37 @@ const StartPage = () => {
                     }
 
                     // другие статусы или ошибка — прекращаем опрос
+                    return false;
+                },
+            },
+        },
+    );
+
+    // опрос результата Fare Request по operationId
+    const {
+        data: fareResult,
+        isLoading: isFareResultLoading,
+        isError: isFareResultError,
+        error: fareResultError,
+    } = useGetOperationsRefundFareRequestsOperationIdentifier<
+        AxiosResponse<RefundFareCalculationResponse>,
+        AxiosError
+    >(
+        fareOperationId ?? '',
+        {
+            query: {
+                enabled: !!fareOperationId,
+                refetchInterval: (query) => {
+                    const response = query.state.data;
+                    const statusCode = response?.data?.status?.processingStatusCode;
+
+                    const isWaiting = (statusCode as any) === 'waiting';
+                    const isProcessing = statusCode === 'processing';
+
+                    if (isWaiting || isProcessing) {
+                        return 2000;
+                    }
+
                     return false;
                 },
             },
@@ -124,9 +166,69 @@ const StartPage = () => {
         );
     };
 
+    const handleFareInfo = () => {
+        if (!pnr) {
+            return;
+        }
+
+        setFareInfoMessage('');
+        setFareOperationId(null);
+
+        const body: any = {
+            reservationReference: pnr,
+            // всегда отправляем массивы, даже если они пустые
+            ticketNumbers: [],
+            emdNumbers: [],
+            passengerIndexes:
+                selectedPassengerIds.length > 0 ? selectedPassengerIds : [],
+            segmentNumbers:
+                selectedSegmentNumbers.length > 0 ? selectedSegmentNumbers : [],
+        };
+
+        postFareInfo(
+            {
+                data: body,
+                params: {
+                    terminalCode: terminalCode,
+                },
+            } as any,
+            {
+                onSuccess: (response) => {
+                    const operationId = (response.data as any)?.operationIdentifier;
+                    if (operationId) {
+                        setFareOperationId(operationId);
+                        setFareInfoMessage('Fare operationId: ' + operationId);
+                    } else {
+                        setFareInfoMessage(
+                            'operationId не найден в ответе Fare Request',
+                        );
+                    }
+                },
+                onError: (error) => {
+                    const axiosError = error as AxiosError<any>;
+                    const status = axiosError.response?.status;
+                    const bodyData = axiosError.response?.data;
+
+                    let bodyString = '';
+                    if (bodyData !== undefined) {
+                        bodyString =
+                            typeof bodyData === 'string'
+                                ? bodyData
+                                : JSON.stringify(bodyData);
+                    }
+
+                    setFareInfoMessage(
+                        'Ошибка Fare Request' +
+                            (status ? ' ' + status : '') +
+                            (bodyString ? ', body: ' + bodyString : ''),
+                    );
+                },
+            },
+        );
+    };
+
     const isSaveDisabled = !localApiKey || !localTerminalCode || locked;
     const isPnrValid = /^[А-ЯA-Za-z0-9]{6}$/.test(pnr);
-
     return (
         <Container maxWidth="md" sx={{mt: 2}}>
             <Card
@@ -257,7 +359,6 @@ const StartPage = () => {
                                             const isProcessing =
                                                 statusCode === 'processing';
 
-                                            // пока статус waiting | processing
                                             if (
                                                 isWaiting ||
                                                 isProcessing ||
@@ -273,7 +374,6 @@ const StartPage = () => {
                                                 );
                                             }
 
-                                            // другие статусы — показываем результат
                                             if (pnrInfoResult) {
                                                 const pnrData =
                                                     (pnrInfoResult.data)
@@ -572,13 +672,132 @@ const StartPage = () => {
                                                                         )}
                                                                     </Box>
                                                                 </Stack>
+
+                                                                {/* Кнопка Fare Info и сообщение */}
+                                                                <Box
+                                                                    mt={2}
+                                                                    display="flex"
+                                                                    alignItems="center"
+                                                                    gap={2}
+                                                                >
+                                                                    <Button
+                                                                        variant="contained"
+                                                                        onClick={handleFareInfo}
+                                                                        // кнопка активна всегда (в рамках этого блока),
+                                                                        // только блокируем на время отправки
+                                                                        disabled={isFareLoading}
+                                                                    >
+                                                                        Fare Info
+                                                                    </Button>
+                                                                    {fareInfoMessage && (
+                                                                        <Typography
+                                                                            variant="body2"
+                                                                            color="text.secondary"
+                                                                        >
+                                                                            {fareInfoMessage}
+                                                                        </Typography>
+                                                                    )}
+                                                                </Box>
+
+                                                                {/* Результат Fare Request */}
+                                                                {fareOperationId && (
+                                                                    <Box mt={2}>
+                                                                        {isFareResultError && (
+                                                                            <Typography
+                                                                                color="error"
+                                                                                variant="body2"
+                                                                            >
+                                                                                Ошибка при
+                                                                                получении
+                                                                                результата Fare
+                                                                                Request:{' '}
+                                                                                {
+                                                                                    fareResultError?.message
+                                                                                }
+                                                                            </Typography>
+                                                                        )}
+
+                                                                        {!isFareResultError && (
+                                                                            <>
+                                                                                {(() => {
+                                                                                    const statusCodeFare =
+                                                                                        fareResult
+                                                                                            ?.data
+                                                                                            .status
+                                                                                            .processingStatusCode;
+
+                                                                                    const isWaitingFare =
+                                                                                        (statusCodeFare as any) ===
+                                                                                        'waiting';
+                                                                                    const isProcessingFare =
+                                                                                        statusCodeFare ===
+                                                                                        'processing';
+
+                                                                                    if (
+                                                                                        isWaitingFare ||
+                                                                                        isProcessingFare ||
+                                                                                        (!fareResult &&
+                                                                                            isFareResultLoading)
+                                                                                    ) {
+                                                                                        return (
+                                                                                            <Typography variant="body2">
+                                                                                                {'подождите, ждем результат Fare операции' +
+                                                                                                    (statusCodeFare
+                                                                                                        ? ' (status: ' +
+                                                                                                          statusCodeFare +
+                                                                                                          ')'
+                                                                                                        : '')}
+                                                                                            </Typography>
+                                                                                        );
+                                                                                    }
+
+                                                                                    if (fareResult) {
+                                                                                        return (
+                                                                                            <>
+                                                                                                <Typography
+                                                                                                    variant="subtitle2"
+                                                                                                    gutterBottom
+                                                                                                >
+                                                                                                    Результат
+                                                                                                    Fare
+                                                                                                    Request
+                                                                                                    (JSON):
+                                                                                                </Typography>
+                                                                                                <Box
+                                                                                                    component="pre"
+                                                                                                    sx={{
+                                                                                                        backgroundColor:
+                                                                                                            '#f5f5f5',
+                                                                                                        p: 1.5,
+                                                                                                        borderRadius: 1,
+                                                                                                        maxHeight: 400,
+                                                                                                        overflow:
+                                                                                                            'auto',
+                                                                                                        fontSize: 12,
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {JSON.stringify(
+                                                                                                        fareResult.data,
+                                                                                                        null,
+                                                                                                        2,
+                                                                                                    )}
+                                                                                                </Box>
+                                                                                            </>
+                                                                                        );
+                                                                                    }
+
+                                                                                    return null;
+                                                                                })()}
+                                                                            </>
+                                                                        )}
+                                                                    </Box>
+                                                                )}
                                                             </Box>
                                                         )}
                                                     </>
                                                 );
                                             }
 
-                                            // дефолтное сообщение ожидания
                                             return (
                                                 <Typography variant="body2">
                                                     подождите, ждем результат операции
