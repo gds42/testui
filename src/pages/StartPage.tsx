@@ -10,8 +10,12 @@ import {
     Typography,
 } from '@mui/material';
 import {useApiConfig} from '../context/ApiConfigContext';
-import {usePostAsyncCommonPnrInfoRequests} from '../api/generated/api';
-import type {AxiosError} from 'axios';
+import {
+    usePostAsyncCommonPnrInfoRequests,
+    useGetOperationsPnrInfoRequestsOperationIdentifier,
+} from '../api/generated/api';
+import type {AxiosError, AxiosResponse} from 'axios';
+import type {PnrInfoResponse} from '../api/generated/api.schemas';
 
 const StartPage = () => {
     const {apiKey, terminalCode, locked, save, logout} = useApiConfig();
@@ -21,10 +25,49 @@ const StartPage = () => {
     const [pnr, setPnr] = useState('');
     const [pnrInfoMessage, setPnrInfoMessage] = useState<string>('');
 
+    // operationId для последующего опроса
+    const [pnrOperationId, setPnrOperationId] = useState<string | null>(null);
+
     const {
         mutate: postPnrInfo,
         isPending: isPnrLoading,
     } = usePostAsyncCommonPnrInfoRequests();
+
+    // запрос результата PNR Info по operationId с опросом раз в 2 секунды
+    const {
+        data: pnrInfoResult,
+        isLoading: isPnrInfoResultLoading,
+        isError: isPnrInfoResultError,
+        error: pnrInfoResultError,
+    } = useGetOperationsPnrInfoRequestsOperationIdentifier<
+        AxiosResponse<PnrInfoResponse>,
+        AxiosError
+    >(
+        pnrOperationId ?? '',
+        {
+            query: {
+                enabled: !!pnrOperationId,
+                // опрашиваем раз в 2 секунды, пока статус = waiting | processing
+                refetchInterval: (query) => {
+                    const response = query.state.data;
+                    const statusCode =
+                        response?.data?.status?.processingStatusCode;
+
+                    // TS не знает про 'waiting', поэтому приводим к any
+                    const isWaiting =
+                        (statusCode as string) === 'waiting';
+                    const isProcessing = statusCode === 'processing';
+
+                    if (isWaiting || isProcessing) {
+                        return 2000;
+                    }
+
+                    // другие статусы или ошибка — прекращаем опрос
+                    return false;
+                },
+            },
+        },
+    );
 
     useEffect(() => {
         setLocalApiKey(apiKey);
@@ -37,11 +80,13 @@ const StartPage = () => {
         logout();
         setPnr('');
         setPnrInfoMessage('');
+        setPnrOperationId(null);
     };
 
     const handlePnrInfo = () => {
-        // очищаем предыдущее сообщение
+        // очищаем предыдущее сообщение и результат
         setPnrInfoMessage('');
+        setPnrOperationId(null);
 
         postPnrInfo(
             {
@@ -56,23 +101,26 @@ const StartPage = () => {
                 onSuccess: (response) => {
                     // response: AxiosResponse<OperationResponse>
                     const operationId = (response.data as any)?.operationIdentifier;
-                    setPnrInfoMessage(
-                        operationId
-                            ? `operationId: ${operationId}`
-                            : 'operationId не найден в ответе',
-                    );
+
+                    if (operationId) {
+                        setPnrOperationId(operationId);
+                        setPnrInfoMessage(`operationId: ${operationId}`);
+                    } else {
+                        setPnrInfoMessage('operationId не найден в ответе');
+                    }
                 },
                 onError: (error) => {
                     const axiosError = error as AxiosError<any>;
                     const status = axiosError.response?.status;
                     const body = axiosError.response?.data;
 
-                    const bodyString =
-                        body === undefined
-                            ? ''
-                            : typeof body === 'string'
-                            ? body
-                            : JSON.stringify(body);
+                    let bodyString = '';
+                    if (body !== undefined) {
+                        bodyString =
+                            typeof body === 'string'
+                                ? body
+                                : JSON.stringify(body);
+                    }
 
                     setPnrInfoMessage(
                         `Ошибка${status ? ` ${status}` : ''}${
@@ -194,12 +242,89 @@ const StartPage = () => {
                         </Card>
                     </Box>
 
-                    {/* Дополнительный контент */}
-                    <Box mt={4}>
-                        <Typography>
-                            Длинный контент страницы. При скролле он уходит под панель.
-                        </Typography>
-                    </Box>
+                    {/* Новый блок под PNR Info: ожидание и результат */}
+                    {pnrOperationId && (
+                        <Box mt={2}>
+                            <Card sx={{p: 2}}>
+                                {isPnrInfoResultError && (
+                                    <Typography color="error" variant="body2">
+                                        Ошибка при получении результата PNR Info:{' '}
+                                        {pnrInfoResultError?.message}
+                                    </Typography>
+                                )}
+
+                                {!isPnrInfoResultError && (
+                                    <>
+                                        {(() => {
+                                            const statusCode =
+                                                pnrInfoResult?.data.status
+                                                    .processingStatusCode;
+
+                                            const isWaiting =
+                                                (statusCode as any) === 'waiting';
+                                            const isProcessing =
+                                                statusCode === 'processing';
+
+                                            // пока статус waiting | processing
+                                            if (
+                                                isWaiting ||
+                                                isProcessing ||
+                                                (!pnrInfoResult && isPnrInfoResultLoading)
+                                            ) {
+                                                return (
+                                                    <Typography variant="body2">
+                                                        {'подождите, ждем результат операции' +
+                                                            (statusCode
+                                                                ? ' (status: ' + statusCode + ')'
+                                                                : '')}
+                                                    </Typography>
+                                                );
+                                            }
+
+                                            // другие статусы (finished, declined, error и т.п.)
+                                            // — опрос уже прекращён и показываем результат
+                                            if (pnrInfoResult) {
+                                                return (
+                                                    <>
+                                                        <Typography
+                                                            variant="subtitle2"
+                                                            gutterBottom
+                                                        >
+                                                            Результат PNR Info (JSON):
+                                                        </Typography>
+                                                        <Box
+                                                            component="pre"
+                                                            sx={{
+                                                                backgroundColor: '#f5f5f5',
+                                                                p: 1.5,
+                                                                borderRadius: 1,
+                                                                maxHeight: 400,
+                                                                overflow: 'auto',
+                                                                fontSize: 12,
+                                                            }}
+                                                        >
+                                                            {JSON.stringify(
+                                                                pnrInfoResult.data,
+                                                                null,
+                                                                2,
+                                                            )}
+                                                        </Box>
+                                                    </>
+                                                );
+                                            }
+
+                                            // дефолтное сообщение ожидания
+                                            return (
+                                                <Typography variant="body2">
+                                                    подождите, ждем результат операции
+                                                </Typography>
+                                            );
+                                        })()}
+                                    </>
+                                )}
+                            </Card>
+                        </Box>
+                    )}
                 </>
             )}
         </Container>
