@@ -1,5 +1,19 @@
 import {useEffect, useState} from 'react';
-import {Box, Button, Card, CardContent, Checkbox, Container, Stack, TextField, Typography,} from '@mui/material';
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Checkbox,
+    Container,
+    Stack,
+    TextField,
+    Typography,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+} from '@mui/material';
 import {useApiConfig} from '../context/ApiConfigContext';
 import {
     useGetOperationsPnrInfoRequestsOperationIdentifier,
@@ -8,13 +22,16 @@ import {
     usePostAsyncRefundFareRequests,
 } from '../api/generated/api';
 import type {AxiosError, AxiosResponse} from 'axios';
-import type {PnrInfoResponse, RefundFareCalculationResponse,} from '../api/generated/api.schemas';
+import type {PnrInfoResponse, RefundFareCalculationResponse} from '../api/generated/api.schemas';
+import {SessionTypeParameter} from '../api/generated/api.schemas';
 
 const StartPage = () => {
-    const {apiKey, terminalCode, locked, save, logout} = useApiConfig();
+    const {apiKey, terminalCode, sessionType, locked, save, logout} = useApiConfig();
 
     const [localApiKey, setLocalApiKey] = useState(apiKey);
     const [localTerminalCode, setLocalTerminalCode] = useState(terminalCode);
+    const [localSessionType, setLocalSessionType] =
+        useState(sessionType);
     const [pnr, setPnr] = useState('');
     const [pnrInfoMessage, setPnrInfoMessage] = useState<string>('');
     const [pnrOperationId, setPnrOperationId] = useState<string | null>(null);
@@ -106,9 +123,10 @@ const StartPage = () => {
     useEffect(() => {
         setLocalApiKey(apiKey);
         setLocalTerminalCode(terminalCode);
-    }, [apiKey, terminalCode]);
+        setLocalSessionType(sessionType);
+    }, [apiKey, terminalCode, sessionType]);
 
-    const handleSave = () => save(localApiKey, localTerminalCode);
+    const handleSave = () => save(localApiKey, localTerminalCode, localSessionType);
 
     const handleLogout = () => {
         logout();
@@ -129,6 +147,7 @@ const StartPage = () => {
                 } as any,
                 params: {
                     terminalCode: terminalCode,
+                    sessionType: sessionType,
                 },
             },
             {
@@ -190,6 +209,7 @@ const StartPage = () => {
                 data: body,
                 params: {
                     terminalCode: terminalCode,
+                    sessionType: sessionType,
                 },
             } as any,
             {
@@ -227,8 +247,11 @@ const StartPage = () => {
         );
     };
 
-    const isSaveDisabled = !localApiKey || !localTerminalCode || locked;
+    const isSaveDisabled =
+        !localApiKey || !localTerminalCode || !localSessionType || locked;
     const isPnrValid = /^[А-ЯA-Za-z0-9]{6}$/.test(pnr);
+    const sessionOptions = Object.values(SessionTypeParameter);
+
     return (
         <Container maxWidth="md" sx={{mt: 2}}>
             <Card
@@ -266,6 +289,24 @@ const StartPage = () => {
                             size="small"
                         />
 
+                        <FormControl size="small" sx={{minWidth: 160}} disabled={locked}>
+                            <InputLabel id="session-type-label">Сессия</InputLabel>
+                            <Select
+                                labelId="session-type-label"
+                                label="Сессия"
+                                value={localSessionType}
+                                onChange={(e) =>
+                                    setLocalSessionType(e.target.value as SessionTypeParameter)
+                                }
+                            >
+                                {sessionOptions.map((s) => (
+                                    <MenuItem key={s as string} value={s}>
+                                        {s as string}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
                         {locked ? (
                             <Button
                                 variant="outlined"
@@ -291,7 +332,7 @@ const StartPage = () => {
                     <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
                         {locked
                             ? 'Параметры сохранены. Нажмите Logout, чтобы изменить значения.'
-                            : 'Заполните оба поля и нажмите Save.'}
+                            : 'Заполните все поля и нажмите Save.'}
                     </Typography>
                 </CardContent>
             </Card>
