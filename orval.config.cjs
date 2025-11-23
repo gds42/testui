@@ -9,7 +9,7 @@ const config = {
             client: 'react-query',
             mode: 'split',
             prettier: true,
-            baseUrl: 'http://localhost:9090', // твой backend
+            baseUrl: '/', // твой backend
         },
     },
 };
