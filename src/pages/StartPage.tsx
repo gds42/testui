@@ -1,18 +1,9 @@
-import {useState, useEffect} from 'react';
-import {
-    Box,
-    Button,
-    Card,
-    CardContent,
-    Container,
-    Stack,
-    TextField,
-    Typography,
-} from '@mui/material';
+import {useEffect, useState} from 'react';
+import {Box, Button, Card, CardContent, Checkbox, Container, Stack, TextField, Typography,} from '@mui/material';
 import {useApiConfig} from '../context/ApiConfigContext';
 import {
-    usePostAsyncCommonPnrInfoRequests,
     useGetOperationsPnrInfoRequestsOperationIdentifier,
+    usePostAsyncCommonPnrInfoRequests,
 } from '../api/generated/api';
 import type {AxiosError, AxiosResponse} from 'axios';
 import type {PnrInfoResponse} from '../api/generated/api.schemas';
@@ -24,9 +15,10 @@ const StartPage = () => {
     const [localTerminalCode, setLocalTerminalCode] = useState(terminalCode);
     const [pnr, setPnr] = useState('');
     const [pnrInfoMessage, setPnrInfoMessage] = useState<string>('');
-
-    // operationId для последующего опроса
     const [pnrOperationId, setPnrOperationId] = useState<string | null>(null);
+
+    const [selectedPassengerIds, setSelectedPassengerIds] = useState<number[]>([]);
+    const [selectedSegmentNumbers, setSelectedSegmentNumbers] = useState<number[]>([]);
 
     const {
         mutate: postPnrInfo,
@@ -133,7 +125,7 @@ const StartPage = () => {
     };
 
     const isSaveDisabled = !localApiKey || !localTerminalCode || locked;
-    const isPnrValid = /^[A-Za-z0-9]{6}$/.test(pnr);
+    const isPnrValid = /^[А-ЯA-Za-z0-9]{6}$/.test(pnr);
 
     return (
         <Container maxWidth="md" sx={{mt: 2}}>
@@ -281,9 +273,59 @@ const StartPage = () => {
                                                 );
                                             }
 
-                                            // другие статусы (finished, declined, error и т.п.)
-                                            // — опрос уже прекращён и показываем результат
+                                            // другие статусы — показываем результат
                                             if (pnrInfoResult) {
+                                                const pnrData =
+                                                    (pnrInfoResult.data)
+                                                        .reservationData;
+
+                                                const travellers =
+                                                    pnrData?.travellers ?? [];
+                                                const segments =
+                                                    pnrData?.reservationSegments ?? [];
+
+                                                const anyPassengerSelected =
+                                                    selectedPassengerIds.length > 0;
+                                                const disablePassengers =
+                                                    selectedSegmentNumbers.length > 0;
+                                                const disableSegments =
+                                                    anyPassengerSelected;
+
+                                                const handlePassengerToggle = (
+                                                    travellerId?: number,
+                                                ) => {
+                                                    if (travellerId == null) {
+                                                        return;
+                                                    }
+                                                    setSelectedPassengerIds((prev) =>
+                                                        prev.includes(travellerId)
+                                                            ? prev.filter(
+                                                                  (id) =>
+                                                                      id !== travellerId,
+                                                              )
+                                                            : prev.concat(travellerId),
+                                                    );
+                                                };
+
+                                                const handleSegmentToggle = (
+                                                    segmentNumber?: number,
+                                                ) => {
+                                                    if (segmentNumber == null) {
+                                                        return;
+                                                    }
+                                                    setSelectedSegmentNumbers((prev) =>
+                                                        prev.includes(segmentNumber)
+                                                            ? prev.filter(
+                                                                  (n) =>
+                                                                      n !==
+                                                                      segmentNumber,
+                                                              )
+                                                            : prev.concat(
+                                                                  segmentNumber,
+                                                              ),
+                                                    );
+                                                };
+
                                                 return (
                                                     <>
                                                         <Typography
@@ -295,7 +337,8 @@ const StartPage = () => {
                                                         <Box
                                                             component="pre"
                                                             sx={{
-                                                                backgroundColor: '#f5f5f5',
+                                                                backgroundColor:
+                                                                    '#f5f5f5',
                                                                 p: 1.5,
                                                                 borderRadius: 1,
                                                                 maxHeight: 400,
@@ -309,6 +352,228 @@ const StartPage = () => {
                                                                 2,
                                                             )}
                                                         </Box>
+
+                                                        {/* Блок Request Fare Info */}
+                                                        {pnrData && (
+                                                            <Box mt={3}>
+                                                                <Typography
+                                                                    variant="h6"
+                                                                    gutterBottom
+                                                                >
+                                                                    Request Fare Info
+                                                                </Typography>
+
+                                                                <Stack
+                                                                    direction={{
+                                                                        xs: 'column',
+                                                                        md: 'row',
+                                                                    }}
+                                                                    spacing={3}
+                                                                >
+                                                                    {/* Пассажиры */}
+                                                                    <Box flex={1}>
+                                                                        <Typography
+                                                                            variant="subtitle1"
+                                                                            gutterBottom
+                                                                        >
+                                                                            Пассажиры
+                                                                        </Typography>
+
+                                                                        {travellers.length ===
+                                                                        0 ? (
+                                                                            <Typography
+                                                                                variant="body2"
+                                                                                color="text.secondary"
+                                                                            >
+                                                                                Нет данных о
+                                                                                пассажирах
+                                                                            </Typography>
+                                                                        ) : (
+                                                                            <Stack
+                                                                                spacing={1}
+                                                                            >
+                                                                                {travellers.map(
+                                                                                    (
+                                                                                        t,
+                                                                                        index,
+                                                                                    ) => {
+                                                                                        const id =
+                                                                                            t.travellerIdentifier ??
+                                                                                            index +
+                                                                                                1;
+                                                                                        const isChecked =
+                                                                                            selectedPassengerIds.includes(
+                                                                                                id,
+                                                                                            );
+
+                                                                                        const labelParts: string[] =
+                                                                                            [];
+
+                                                                                        labelParts.push(
+                                                                                            '№ ' +
+                                                                                                id,
+                                                                                        );
+                                                                                        if (
+                                                                                            t.lastName
+                                                                                        ) {
+                                                                                            labelParts.push(
+                                                                                                t.lastName,
+                                                                                            );
+                                                                                        }
+                                                                                        if (
+                                                                                            t.firstName
+                                                                                        ) {
+                                                                                            labelParts.push(
+                                                                                                t.firstName,
+                                                                                            );
+                                                                                        }
+                                                                                        if (
+                                                                                            t.birthDate
+                                                                                        ) {
+                                                                                            labelParts.push(
+                                                                                                'д.р. ' +
+                                                                                                    t.birthDate,
+                                                                                            );
+                                                                                        }
+
+                                                                                        return (
+                                                                                            <Stack
+                                                                                                key={
+                                                                                                    'traveller-' +
+                                                                                                    id
+                                                                                                }
+                                                                                                direction="row"
+                                                                                                spacing={
+                                                                                                    1
+                                                                                                }
+                                                                                                alignItems="center"
+                                                                                            >
+                                                                                                <Checkbox
+                                                                                                    checked={
+                                                                                                        isChecked
+                                                                                                    }
+                                                                                                    disabled={
+                                                                                                        disablePassengers
+                                                                                                    }
+                                                                                                    onChange={() =>
+                                                                                                        handlePassengerToggle(
+                                                                                                            id,
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <Typography variant="body2">
+                                                                                                    {labelParts.join(
+                                                                                                        ', ',
+                                                                                                    )}
+                                                                                                </Typography>
+                                                                                            </Stack>
+                                                                                        );
+                                                                                    },
+                                                                                )}
+                                                                            </Stack>
+                                                                        )}
+                                                                    </Box>
+
+                                                                    {/* Сегменты */}
+                                                                    <Box flex={1}>
+                                                                        <Typography
+                                                                            variant="subtitle1"
+                                                                            gutterBottom
+                                                                        >
+                                                                            Сегменты
+                                                                        </Typography>
+
+                                                                        {segments.length ===
+                                                                        0 ? (
+                                                                            <Typography
+                                                                                variant="body2"
+                                                                                color="text.secondary"
+                                                                            >
+                                                                                Нет данных о
+                                                                                сегментах
+                                                                            </Typography>
+                                                                        ) : (
+                                                                            <Stack
+                                                                                spacing={1}
+                                                                            >
+                                                                                {segments.map(
+                                                                                    (
+                                                                                        s,
+                                                                                        index,
+                                                                                    ) => {
+                                                                                        const segmentNumber =
+                                                                                            s.segmentNumber ??
+                                                                                            index +
+                                                                                                1;
+                                                                                        const isChecked =
+                                                                                            selectedSegmentNumbers.includes(
+                                                                                                segmentNumber,
+                                                                                            );
+
+                                                                                        const mainPart =
+                                                                                            (s.carrierCode ||
+                                                                                                '') +
+                                                                                            '-' +
+                                                                                            (s.flightNumber ||
+                                                                                                '');
+                                                                                        const datesPart =
+                                                                                            (s.departureDate ||
+                                                                                                '') +
+                                                                                            ' → ' +
+                                                                                            (s.arrivalDate ||
+                                                                                                '');
+                                                                                        const airportsPart =
+                                                                                            (s.fromAirport ||
+                                                                                                '') +
+                                                                                            ' → ' +
+                                                                                            (s.toAirport ||
+                                                                                                '');
+
+                                                                                        return (
+                                                                                            <Stack
+                                                                                                key={
+                                                                                                    'segment-' +
+                                                                                                    segmentNumber
+                                                                                                }
+                                                                                                direction="row"
+                                                                                                spacing={
+                                                                                                    1
+                                                                                                }
+                                                                                                alignItems="center"
+                                                                                            >
+                                                                                                <Checkbox
+                                                                                                    checked={
+                                                                                                        isChecked
+                                                                                                    }
+                                                                                                    disabled={
+                                                                                                        disableSegments
+                                                                                                    }
+                                                                                                    onChange={() =>
+                                                                                                        handleSegmentToggle(
+                                                                                                            segmentNumber,
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <Typography variant="body2">
+                                                                                                    {'№ ' +
+                                                                                                        segmentNumber +
+                                                                                                        ' ' +
+                                                                                                        mainPart +
+                                                                                                        '  ' +
+                                                                                                        datesPart +
+                                                                                                        '  ' +
+                                                                                                        airportsPart}
+                                                                                                </Typography>
+                                                                                            </Stack>
+                                                                                        );
+                                                                                    },
+                                                                                )}
+                                                                            </Stack>
+                                                                        )}
+                                                                    </Box>
+                                                                </Stack>
+                                                            </Box>
+                                                        )}
                                                     </>
                                                 );
                                             }
