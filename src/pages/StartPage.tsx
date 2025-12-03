@@ -4,18 +4,22 @@ import {useApiConfig} from '../context/ApiConfigContext';
 import {
     useGetOperationsPnrInfoRequestsOperationIdentifier,
     useGetOperationsRefundFareRequestsOperationIdentifier,
+    useGetOperationsRefundRefundRequestsOperationIdentifier,
     usePostAsyncCommonPnrInfoRequests,
     usePostAsyncRefundFareRequests,
+    usePostAsyncRefundRefundRequests,
 } from '../api/generated/api';
 import type {AxiosError, AxiosResponse} from 'axios';
 import type {
-    PnrInfoResponse,
+    PnrInfoResponse, PostAsyncRefundRefundRequestsBody,
     RefundFareCalculationResponse,
+    RefundResultResponse,
 } from '../api/generated/api.schemas';
 import {SessionTypeParameter} from '../api/generated/api.schemas';
 import {StartPageHeader} from './components/StartPageHeader';
 import {PnrInfoForm} from './components/PnrInfoForm';
 import {PnrResultAndFareBlock} from './components/PnrResultAndFareBlock';
+import {RefundBlock} from './components/RefundBlock';
 
 const StartPage = () => {
     const {apiKey, terminalCode, sessionType, locked, save, logout} =
@@ -45,6 +49,11 @@ const StartPage = () => {
     );
     const [fareInfoMessage, setFareInfoMessage] = useState<string>('');
 
+    // Новые состояния для Refund
+    const [refundOperationId, setRefundOperationId] = useState<string | null>(null);
+    const [refundInfoMessage, setRefundInfoMessage] = useState<string>('');
+    const [showRefundBlock, setShowRefundBlock] = useState<boolean>(false);
+
     const {
         mutate: postPnrInfo,
         isPending: isPnrLoading,
@@ -54,6 +63,12 @@ const StartPage = () => {
         mutate: postFareInfo,
         isPending: isFareLoading,
     } = usePostAsyncRefundFareRequests();
+
+    // Новый мутейт для Refund
+    const {
+        mutate: postRefund,
+        isPending: isRefundLoading,
+    } = usePostAsyncRefundRefundRequests();
 
     const {
         data: pnrInfoResult,
@@ -111,6 +126,49 @@ const StartPage = () => {
         },
     });
 
+    // Новый запрос результата Refund операции
+    const {
+        data: refundResult,
+        isLoading: isRefundResultLoading,
+        isError: isRefundResultError,
+        error: refundResultError,
+    } = useGetOperationsRefundRefundRequestsOperationIdentifier<
+        AxiosResponse<RefundResultResponse>,
+        AxiosError
+    >(refundOperationId ?? '', {
+        query: {
+            enabled: !!refundOperationId,
+            refetchInterval: (query) => {
+                const response = query.state.data;
+                const statusCode =
+                    response?.data?.status?.processingStatusCode;
+
+                const isWaiting = (statusCode as any) === 'waiting';
+                const isProcessing = statusCode === 'processing';
+
+                if (isWaiting || isProcessing) {
+                    return 2000;
+                }
+
+                return false;
+            },
+        },
+    });
+
+    // Эффект для показа RefundBlock после успешного получения Fare результата
+    useEffect(() => {
+        if (fareResult) {
+            const statusCode = fareResult.data?.status?.processingStatusCode;
+            const isWaiting = (statusCode as any) === 'waiting';
+            const isProcessing = statusCode === 'processing';
+            
+            // Показываем RefundBlock, когда операция завершена (не waiting и не processing)
+            if (statusCode && !isWaiting && !isProcessing) {
+                setShowRefundBlock(true);
+            }
+        }
+    }, [fareResult]);
+
     useEffect(() => {
         setLocalApiKey(apiKey);
         setLocalTerminalCode(terminalCode);
@@ -129,6 +187,10 @@ const StartPage = () => {
         setSelectedSegmentNumbers([]);
         setFareInfoMessage('');
         setFareOperationId(null);
+        // Очистка Refund данных
+        setRefundOperationId(null);
+        setRefundInfoMessage('');
+        setShowRefundBlock(false);
     };
 
     const handlePnrChange = (value: string) => {
@@ -141,6 +203,10 @@ const StartPage = () => {
         setSelectedSegmentNumbers([]);
         setFareInfoMessage('');
         setFareOperationId(null);
+        // Очистка Refund данных
+        setRefundOperationId(null);
+        setRefundInfoMessage('');
+        setShowRefundBlock(false);
     };
 
     const handlePnrInfo = () => {
@@ -150,6 +216,10 @@ const StartPage = () => {
         setSelectedSegmentNumbers([]);
         setFareInfoMessage('');
         setFareOperationId(null);
+        // Очистка Refund данных при повторном нажатии PNR Info
+        setRefundOperationId(null);
+        setRefundInfoMessage('');
+        setShowRefundBlock(false);
 
         postPnrInfo(
             {
@@ -205,6 +275,10 @@ const StartPage = () => {
 
         setFareInfoMessage('');
         setFareOperationId(null);
+        // Очистка Refund данных при повторном нажатии Fare Info
+        setRefundOperationId(null);
+        setRefundInfoMessage('');
+        setShowRefundBlock(false);
 
         const body: any = {
             reservationReference: pnr,
@@ -256,6 +330,62 @@ const StartPage = () => {
 
                     setFareInfoMessage(
                         'Ошибка Fare Request' +
+                        (status ? ' ' + status : '') +
+                        (bodyString ? ', body: ' + bodyString : ''),
+                    );
+                },
+            },
+        );
+    };
+
+    // Новый обработчик для Execute Refund
+    const handleExecuteRefund = () => {
+        if (!pnr) {
+            return;
+        }
+
+        setRefundInfoMessage('');
+        setRefundOperationId(null);
+
+        const body: PostAsyncRefundRefundRequestsBody = {
+            fareCalculationOrderReference: fareOperationId!
+        };
+
+        postRefund(
+            {
+                data: body,
+                params: {
+                    terminalCode: terminalCode,
+                    sessionType: sessionType,
+                },
+            } as any,
+            {
+                onSuccess: (response) => {
+                    const operationId = (response.data as any)?.operationIdentifier;
+                    if (operationId) {
+                        setRefundOperationId(operationId);
+                        setRefundInfoMessage('Refund operationId: ' + operationId);
+                    } else {
+                        setRefundInfoMessage(
+                            'operationId не найден в ответе Refund Request',
+                        );
+                    }
+                },
+                onError: (error) => {
+                    const axiosError = error as AxiosError<any>;
+                    const status = axiosError.response?.status;
+                    const bodyData = axiosError.response?.data;
+
+                    let bodyString = '';
+                    if (bodyData !== undefined) {
+                        bodyString =
+                            typeof bodyData === 'string'
+                                ? bodyData
+                                : JSON.stringify(bodyData);
+                    }
+
+                    setRefundInfoMessage(
+                        'Ошибка Refund Request' +
                         (status ? ' ' + status : '') +
                         (bodyString ? ', body: ' + bodyString : ''),
                     );
@@ -317,6 +447,19 @@ const StartPage = () => {
                             onFareInfoClick={handleFareInfo}
                         />
                     )}
+
+                    {/* Новый блок Refund */}
+                    <RefundBlock
+                        isVisible={showRefundBlock}
+                        isRefundLoading={isRefundLoading}
+                        refundOperationId={refundOperationId}
+                        refundResult={refundResult}
+                        isRefundResultLoading={isRefundResultLoading}
+                        isRefundResultError={isRefundResultError}
+                        refundResultError={refundResultError ?? undefined}
+                        refundInfoMessage={refundInfoMessage}
+                        onExecuteRefund={handleExecuteRefund}
+                    />
                 </>
             )}
         </Container>
