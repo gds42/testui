@@ -77,10 +77,10 @@ export const StartPageHeader: React.FC<Props> = ({
                     />
 
                     <FormControl size="small" sx={{minWidth: 160}} disabled={locked}>
-                        <InputLabel id="session-type-label">Сессия</InputLabel>
+                        <InputLabel id="session-type-label">Session</InputLabel>
                         <Select
                             labelId="session-type-label"
-                            label="Сессия"
+                            label="Session"
                             value={localSessionType}
                             onChange={(e) =>
                                 onSessionTypeChange(
@@ -120,8 +120,8 @@ export const StartPageHeader: React.FC<Props> = ({
 
                 <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
                     {locked
-                        ? 'Параметры сохранены. Нажмите Logout, чтобы изменить значения.'
-                        : 'Заполните все поля и нажмите Save.'}
+                        ? 'The settings have been saved. Click Logout to change the values.'
+                        : 'Fill in all fields and click Save.'}
                 </Typography>
             </CardContent>
         </Card>

@@ -24,7 +24,7 @@ export const PnrInfoForm: React.FC<Props> = ({
                 <Stack direction="row" spacing={2} alignItems="center">
                     <TextField
                         label="PNR Info"
-                        placeholder="Введите PNR номер"
+                        placeholder="Enter PNR: "
                         value={pnr}
                         onChange={(e) => {
                             const val = e.target.value.toUpperCase();

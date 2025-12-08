@@ -36,7 +36,7 @@ export const RefundBlock: React.FC<Props> = ({
         if (isRefundResultError) {
             return (
                 <Typography color="error" variant="body2">
-                    Ошибка при получении результата Refund:{' '}
+                    Error while getting result on Refund:{' '}
                     {refundResultError?.message}
                 </Typography>
             );
@@ -51,7 +51,7 @@ export const RefundBlock: React.FC<Props> = ({
                 <Box display="flex" alignItems="center" gap={1}>
                     <CircularProgress size={20} />
                     <Typography variant="body2">
-                        {'Подождите, ждем результат операции возврата' +
+                        {'Please wait, we are waiting for the results of the refund operation.' +
                             (statusCode ? ' (status: ' + statusCode + ')' : '')}
                     </Typography>
                 </Box>
@@ -62,7 +62,7 @@ export const RefundBlock: React.FC<Props> = ({
 
         return (
             <JsonBlock
-                title="Результат Refund (JSON):"
+                title="Refund results (JSON):"
                 data={refundResult.data}
             />
         );

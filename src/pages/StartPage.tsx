@@ -241,7 +241,7 @@ const StartPage = () => {
                         setPnrInfoMessage(`operationId: ${operationId}`);
                     } else {
                         setPnrInfoMessage(
-                            'operationId не найден в ответе',
+                            'operationId not found in the response',
                         );
                     }
                 },
@@ -259,7 +259,7 @@ const StartPage = () => {
                     }
 
                     setPnrInfoMessage(
-                        `Ошибка${status ? ` ${status}` : ''}${
+                        `Error${status ? ` ${status}` : ''}${
                             bodyString ? `, body: ${bodyString}` : ''
                         }`,
                     );
@@ -311,7 +311,7 @@ const StartPage = () => {
                         );
                     } else {
                         setFareInfoMessage(
-                            'operationId не найден в ответе Fare Request',
+                            'operationId not found in the response on Fare Request',
                         );
                     }
                 },
@@ -329,7 +329,7 @@ const StartPage = () => {
                     }
 
                     setFareInfoMessage(
-                        'Ошибка Fare Request' +
+                        'Error Fare Request' +
                         (status ? ' ' + status : '') +
                         (bodyString ? ', body: ' + bodyString : ''),
                     );
@@ -367,7 +367,7 @@ const StartPage = () => {
                         setRefundInfoMessage('Refund operationId: ' + operationId);
                     } else {
                         setRefundInfoMessage(
-                            'operationId не найден в ответе Refund Request',
+                            'operationId not found in the response on Refund Request',
                         );
                     }
                 },
@@ -385,7 +385,7 @@ const StartPage = () => {
                     }
 
                     setRefundInfoMessage(
-                        'Ошибка Refund Request' +
+                        'Error Refund Request' +
                         (status ? ' ' + status : '') +
                         (bodyString ? ', body: ' + bodyString : ''),
                     );

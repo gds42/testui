@@ -23,7 +23,7 @@ export const TravellersList: React.FC<Props> = ({
     if (travellers.length === 0) {
         return (
             <Typography variant="body2" color="text.secondary">
-                Нет данных о пассажирах
+                No pax data
             </Typography>
         );
     }

@@ -28,7 +28,7 @@ export const SegmentsList: React.FC<Props> = ({
     if (segments.length === 0) {
         return (
             <Typography variant="body2" color="text.secondary">
-                Нет данных о сегментах
+                No segments information
             </Typography>
         );
     }

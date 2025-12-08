@@ -60,7 +60,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
         ) {
             return (
                 <Typography variant="body2">
-                    {'подождите, ждем результат операции' +
+                    {'Please wait, we are waiting for the results of the operation.' +
                         (statusCode ? ' (status: ' + statusCode + ')' : '')}
                 </Typography>
             );
@@ -74,7 +74,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
         if (isFareResultError) {
             return (
                 <Typography color="error" variant="body2">
-                    Ошибка при получении результата Fare Request:{' '}
+                    Error while getting result on Fare Request:{' '}
                     {fareResultError?.message}
                 </Typography>
             );
@@ -92,7 +92,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
         ) {
             return (
                 <Typography variant="body2">
-                    {'подождите, ждем результат Fare операции' +
+                    {'Please wait, we are waiting for the return for Fare operation result.' +
                         (statusCodeFare
                             ? ' (status: ' + statusCodeFare + ')'
                             : '')}
@@ -104,7 +104,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
 
         return (
             <JsonBlock
-                title="Результат Fare Request (JSON):"
+                title="Result of Fare Request (JSON):"
                 data={fareResult.data}
             />
         );
@@ -115,7 +115,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
             <Card sx={{p: 2}}>
                 {isPnrInfoResultError && (
                     <Typography color="error" variant="body2">
-                        Ошибка при получении результата PNR Info:{' '}
+                        Error while getting result on PNR Info:{' '}
                         {pnrInfoResultError?.message}
                     </Typography>
                 )}
@@ -127,7 +127,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
                         {pnrInfoResult && (
                             <>
                                 <JsonBlock
-                                    title="Результат PNR Info (JSON):"
+                                    title="PNR Info results (JSON):"
                                     data={pnrInfoResult.data}
                                 />
 
@@ -152,7 +152,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
                                                     variant="subtitle1"
                                                     gutterBottom
                                                 >
-                                                    Пассажиры
+                                                    Passengers
                                                 </Typography>
                                                 <TravellersList
                                                     travellers={
@@ -192,7 +192,7 @@ export const PnrResultAndFareBlock: React.FC<Props> = ({
                                                     variant="subtitle1"
                                                     gutterBottom
                                                 >
-                                                    Сегменты
+                                                    Segments
                                                 </Typography>
                                                 <SegmentsList
                                                     segments={
